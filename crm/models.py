@@ -1,10 +1,11 @@
 from django.db import models
 from django.contrib import auth
 from django.core.exceptions import PermissionDenied
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager,User
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager, User
 from django.utils.translation import ugettext_lazy as _
 from multiselectfield import MultiSelectField
 from django.utils.safestring import mark_safe
+from django.urls import reverse
 
 course_choices = (('LinuxL', 'Linux中高级'),
                   ('PythonFullStack', 'Python高级全栈开发'),)
@@ -68,7 +69,7 @@ class Customer(models.Model):
     birthday = models.DateField('出生日期', default=None, help_text="格式yyyy-mm-dd", blank=True, null=True)
     phone = models.BigIntegerField('手机号', blank=True, null=True)
     source = models.CharField('客户来源', max_length=64, choices=source_type, default='qq')
-    introduce_from = models.ForeignKey('self', verbose_name="转介绍自学员", blank=True, null=True,on_delete=models.CASCADE)
+    introduce_from = models.ForeignKey('self', verbose_name="转介绍自学员", blank=True, null=True, on_delete=models.CASCADE)
     course = MultiSelectField("咨询课程", choices=course_choices)
     class_type = models.CharField("班级类型", max_length=64, choices=class_type_choices, default='fulltime')
     customer_note = models.TextField("客户备注", blank=True, null=True, )
@@ -79,10 +80,10 @@ class Customer(models.Model):
     last_consult_date = models.DateField("最后跟进日期", auto_now_add=True)
     next_date = models.DateField("预计再次跟进时间", blank=True, null=True)
     network_consultant = models.ForeignKey('UserProfile', blank=True, null=True, verbose_name='咨询师',
-                                           related_name='network_consultant',on_delete=models.CASCADE)
-    consultant = models.ForeignKey('UserProfile', verbose_name="销售", related_name='customers', blank=True, null=True,on_delete=models.CASCADE )
-    class_list = models.ManyToManyField('ClassList', verbose_name="已报班级",blank=True )
-
+                                           related_name='network_consultant', on_delete=models.CASCADE)
+    consultant = models.ForeignKey('UserProfile', verbose_name="销售", related_name='customers', blank=True, null=True,
+                                   on_delete=models.CASCADE)
+    class_list = models.ManyToManyField('ClassList', verbose_name="已报班级", blank=True)
 
     def show_classes(self):
         # for i in self.class_list.all():
@@ -98,12 +99,26 @@ class Customer(models.Model):
         :return:
         '''
         color_dict = {
-            'signed':'green',
-            'unregistered':'red',
-            'studying':'pink',
-            'paid_in_full':'blue'
+            'signed': 'green',
+            'unregistered': 'red',
+            'studying': 'pink',
+            'paid_in_full': 'blue'
         }
-        return mark_safe('<span style="background-color: {};color: white;padding: 4px;">{}</span>'.format(color_dict[self.status],self.get_status_display()))
+        return mark_safe(
+            '<span style="background-color: {};color: white;padding: 4px;">{}</span>'.format(color_dict[self.status],
+                                                                                             self.get_status_display()))
+
+    def enroll_link(self):
+        if not self.enrollment_set.exists():
+            return mark_safe('<a href="{}">添加报名表</a>'.format(reverse('add_enrollment', args=(self.id,))))
+        else:
+            return mark_safe(
+                '<a href="{}">添加</a> | <a href="{}">查看</a>'.format(reverse('add_enrollment', args=(self.id,)),
+                                                                   reverse('enrollment', args=(self.id,))))
+
+    def __str__(self):
+        return '{0}<{1}>'.format(self.name, self.qq)
+
 
 class Campuses(models.Model):
     """
@@ -131,12 +146,13 @@ class ClassList(models.Model):
     """
     course = models.CharField("课程名称", max_length=64, choices=course_choices)
     semester = models.IntegerField("学期")
-    campuses = models.ForeignKey('Campuses', verbose_name="校区",on_delete=models.CASCADE)
+    campuses = models.ForeignKey('Campuses', verbose_name="校区", on_delete=models.CASCADE)
     price = models.IntegerField("学费", default=10000)
     memo = models.CharField('说明', blank=True, null=True, max_length=100)
     start_date = models.DateField("开班日期")
     graduate_date = models.DateField("结业日期", blank=True, null=True)
-    contract = models.ForeignKey('ContractTemplate', verbose_name="选择合同模版", blank=True, null=True,on_delete=models.CASCADE)
+    contract = models.ForeignKey('ContractTemplate', verbose_name="选择合同模版", blank=True, null=True,
+                                 on_delete=models.CASCADE)
     teachers = models.ManyToManyField('UserProfile', verbose_name="老师")
     class_type = models.CharField(choices=class_type_choices, max_length=64, verbose_name='班额及类型', blank=True,
                                   null=True)
@@ -145,17 +161,17 @@ class ClassList(models.Model):
         unique_together = ("course", "semester", 'campuses')
 
     def __str__(self):
-        return '{}{}学期({})'.format(self.get_course_display(),self.semester,self.campuses)
+        return '{}{}学期({})'.format(self.get_course_display(), self.semester, self.campuses)
 
 
 class ConsultRecord(models.Model):
     """
     跟进记录表
     """
-    customer = models.ForeignKey('Customer', verbose_name="所咨询客户",on_delete=models.CASCADE)
+    customer = models.ForeignKey('Customer', verbose_name="所咨询客户", on_delete=models.CASCADE)
     note = models.TextField(verbose_name="跟进内容...")
     status = models.CharField("跟进状态", max_length=8, choices=seek_status_choices, help_text="选择客户此时的状态")
-    consultant = models.ForeignKey("UserProfile", verbose_name="跟进人", related_name='records',on_delete=models.CASCADE)
+    consultant = models.ForeignKey("UserProfile", verbose_name="跟进人", related_name='records', on_delete=models.CASCADE)
     date = models.DateTimeField("跟进日期", auto_now_add=True)
     delete_status = models.BooleanField(verbose_name='删除状态', default=False)
 
@@ -172,9 +188,9 @@ class Enrollment(models.Model):
     enrolled_date = models.DateTimeField(auto_now_add=True, verbose_name="报名日期")
     memo = models.TextField('备注', blank=True, null=True)
     delete_status = models.BooleanField(verbose_name='删除状态', default=False)
-    customer = models.ForeignKey('Customer', verbose_name='客户名称',on_delete=models.CASCADE)
-    school = models.ForeignKey('Campuses',on_delete=models.CASCADE)
-    enrolment_class = models.ForeignKey("ClassList", verbose_name="所报班级",on_delete=models.CASCADE)
+    customer = models.ForeignKey('Customer', verbose_name='客户名称', on_delete=models.CASCADE)
+    school = models.ForeignKey('Campuses', on_delete=models.CASCADE, verbose_name='校区')
+    enrolment_class = models.ForeignKey("ClassList", verbose_name="所报班级", on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('enrolment_class', 'customer')
@@ -191,9 +207,10 @@ class PaymentRecord(models.Model):
     course = models.CharField("课程名", choices=course_choices, max_length=64, blank=True, null=True, default='N/A')
     class_type = models.CharField("班级类型", choices=class_type_choices, max_length=64, blank=True, null=True,
                                   default='N/A')
-    enrolment_class = models.ForeignKey('ClassList', verbose_name='所报班级', blank=True, null=True,on_delete=models.CASCADE)
-    customer = models.ForeignKey('Customer', verbose_name="客户",on_delete=models.CASCADE)
-    consultant = models.ForeignKey('UserProfile', verbose_name="销售",on_delete=models.CASCADE)
+    enrolment_class = models.ForeignKey('ClassList', verbose_name='所报班级', blank=True, null=True,
+                                        on_delete=models.CASCADE)
+    customer = models.ForeignKey('Customer', verbose_name="客户", on_delete=models.CASCADE)
+    consultant = models.ForeignKey('UserProfile', verbose_name="销售", on_delete=models.CASCADE)
     delete_status = models.BooleanField(verbose_name='删除状态', default=False)
 
     status_choices = (
@@ -204,7 +221,7 @@ class PaymentRecord(models.Model):
 
     confirm_date = models.DateTimeField(verbose_name="确认日期", null=True, blank=True)
     confirm_user = models.ForeignKey(verbose_name="确认人", to='UserProfile', related_name='confirms', null=True,
-                                     blank=True,on_delete=models.CASCADE)
+                                     blank=True, on_delete=models.CASCADE)
 
 
 class CourseRecord(models.Model):
@@ -217,8 +234,8 @@ class CourseRecord(models.Model):
     homework_title = models.CharField('本节作业标题', max_length=64, blank=True, null=True)
     homework_memo = models.TextField('作业描述', max_length=500, blank=True, null=True)
     scoring_point = models.TextField('得分点', max_length=300, blank=True, null=True)
-    re_class = models.ForeignKey('ClassList', verbose_name="班级",on_delete=models.CASCADE)
-    teacher = models.ForeignKey('UserProfile', verbose_name="讲师",on_delete=models.CASCADE)
+    re_class = models.ForeignKey('ClassList', verbose_name="班级", on_delete=models.CASCADE)
+    teacher = models.ForeignKey('UserProfile', verbose_name="讲师", on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('re_class', 'day_num')
@@ -235,8 +252,8 @@ class StudyRecord(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     note = models.CharField("备注", max_length=255, blank=True, null=True)
     homework = models.FileField(verbose_name='作业文件', blank=True, null=True, default=None)
-    course_record = models.ForeignKey('CourseRecord', verbose_name="某节课程",on_delete=models.CASCADE)
-    student = models.ForeignKey('Customer', verbose_name="学员",on_delete=models.CASCADE)
+    course_record = models.ForeignKey('CourseRecord', verbose_name="某节课程", on_delete=models.CASCADE)
+    student = models.ForeignKey('Customer', verbose_name="学员", on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('course_record', 'student')
@@ -334,7 +351,7 @@ class UserProfile(AbstractBaseUser, PermissionsMixin):
     )
     is_admin = models.BooleanField(default=False)
     name = models.CharField('名字', max_length=32)
-    department = models.ForeignKey('Department', default=None, blank=True, null=True,on_delete=models.CASCADE)
+    department = models.ForeignKey('Department', default=None, blank=True, null=True, on_delete=models.CASCADE)
     mobile = models.CharField('手机', max_length=32, default=None, blank=True, null=True)
 
     memo = models.TextField('备注', blank=True, null=True, default=None)

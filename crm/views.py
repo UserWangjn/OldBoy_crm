@@ -6,6 +6,8 @@ from django.urls import reverse
 from django.views import View
 from django.db.models import Q
 import copy
+from django.http import QueryDict
+from django.utils.safestring import mark_safe
 
 
 def login(request):
@@ -70,12 +72,15 @@ class CustomerList(View):
         query_params = copy.deepcopy(request.GET)
         # print('query_params:',query_params)
         page = Pagination(request, all_customer.count(), query_params, per_num=2)
-        next_url = request.get_full_path()
+        add_btn, next_url = self.get_add_btn()
+        # print('add_btn:', add_btn)
+        # print('next_url:', next_url)
         return render(request, 'crm/customer_list.html', {
             "all_customer": all_customer[page.start:page.end],
             'pagination': page.show_li,
-            'next_url': next_url}
-                      )
+            'add_btn': add_btn,
+            'next_url': next_url
+        })
 
     def post(self, request):
         # print(request.POST)   # <QueryDict: {'csrfmiddlewaretoken': ['KOIBZh8aVJ7xQM7ZxwgZfK4Wd3atAa1BdbxJJyx4x3g4W7eJfS5MkppIvuwGRFMC'], 'action': ['multi_to_pri'], 'id': ['2', '3', '6']}>
@@ -84,7 +89,8 @@ class CustomerList(View):
             return HttpResponse('不存在的操作')
         ret = getattr(self, action)()
 
-        return redirect(reverse('customer'))
+        # return redirect(reverse('customer'))
+        return self.get(request)
 
     def multi_to_pri(self):
         select_ids = self.request.POST.getlist('id')
@@ -104,15 +110,97 @@ class CustomerList(View):
 
         return q
 
+    def get_add_btn(self):
+        next = self.request.get_full_path()
+        qd = QueryDict()
+        qd._mutable = True
+        qd['next'] = next
+        next_url = qd.urlencode()
+        # print('qd:',qd.urlencode())  # qd: next=%2Fcrm%2Fcustomer_list%2F%3Fquery%3D11%26page%3D3
+        # print('qd:',qd)     # qd: <QueryDict: {'next': ['/crm/customer_list/?query=11&page=3']}>
+        add_btn = '<a href="{}?{}" class="btn btn-primary btn-sm">新增</a>'.format(reverse('add_customer'), next_url)
+
+        return mark_safe(add_btn), next_url
+
 
 # 新增和编辑客户
 def customer(request, edit_id=None):
-    url = request.get_full_path()
     edit_obj = models.Customer.objects.filter(id=edit_id).first()
     form_obj = forms.CustomerForm(instance=edit_obj)
     if request.method == 'POST':
         form_obj = forms.CustomerForm(request.POST, instance=edit_obj)
         if form_obj.is_valid():
             form_obj.save()
+            next = request.GET.get('next')
+            if next:
+                return redirect(next)
             return redirect(reverse('customer'))
     return render(request, 'crm/customer.html', {'form_obj': form_obj, 'edit_obj': edit_obj})
+
+
+# 展示跟进记录
+class ConsultRecord(View):
+
+    def get(self, request, customer_id):
+        if customer_id == '0':
+            all_consult_record = models.ConsultRecord.objects.filter(delete_status=False)
+        else:
+            all_consult_record = models.ConsultRecord.objects.filter(customer_id=customer_id, delete_status=False)
+        query_params = copy.deepcopy(request.GET)
+        page = Pagination(request, all_consult_record.count(), query_params, per_num=2)
+        return render(request, 'crm/consult_record_list.html', {
+            "all_consult_record": all_consult_record[page.start:page.end],
+            'pagination': page.show_li,
+        })
+
+
+# 新增和编辑跟进记录
+def consult_record(request, edit_id=None):
+    obj = models.ConsultRecord.objects.filter(id=edit_id).first() or models.ConsultRecord(consultant=request.user)
+    form_obj = forms.ConsultRecordForm(instance=obj)
+    if request.method == 'POST':
+        form_obj = forms.ConsultRecordForm(request.POST, instance=obj)
+        if form_obj.is_valid():
+            form_obj.save()
+            return redirect(reverse('consult_record', args=(0,)))
+    return render(request, 'crm/consult_record.html', {'form_obj': form_obj})
+
+
+# 展示报名记录
+class EnrollmentList(View):
+    def get(self, request, customer_id):
+        if customer_id == '0':
+            all_enrollment = models.Enrollment.objects.filter(delete_status=False, customer__consultant=request.user)
+        else:
+            all_enrollment = models.Enrollment.objects.filter(customer_id=customer_id, delete_status=False)
+        next_url = self.get_next_url()
+        return render(request, 'crm/enrollment_list.html', {'all_enrollment': all_enrollment,
+                                                            'next_url':next_url})
+
+    def get_next_url(self):
+        next = self.request.get_full_path()
+        qd = QueryDict()
+        qd._mutable = True
+        qd['next'] = next
+        next_url = qd.urlencode()
+
+        return next_url
+
+
+# 新增和编辑报名表
+def enrollment(request, customer_id=None, edit_id=None):
+    obj = models.Enrollment.objects.filter(id=edit_id).first() or models.Enrollment(customer_id=customer_id)
+    form_obj = forms.EnrollmentForm(instance=obj)
+
+    if request.method == 'POST':
+        form_obj = forms.EnrollmentForm(request.POST, instance=obj)
+        if form_obj.is_valid():
+            enrollment_obj = form_obj.save()
+            enrollment_obj.customer.status = 'signed'
+            enrollment_obj.customer.save()
+            next = request.GET.get('next')
+            if next:
+                return redirect(next)
+            return redirect(reverse('my_customer'))
+    return render(request, 'crm/enrollment.html', {'form_obj': form_obj,
+                                                   'edit_id': edit_id})

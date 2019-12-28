@@ -3,13 +3,20 @@ from crm import models
 from django.core.exceptions import ValidationError
 
 
-class RegForm(forms.ModelForm):
+class BaseForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field in self.fields.values():
+            field.widget.attrs.update({'class': 'form-control'})
+
+
+class RegForm(BaseForm):
     re_password = forms.CharField(label='确认密码',
                                   min_length=6,
                                   widget=forms.widgets.PasswordInput,
                                   error_messages={
-                                      'min_length':'不能少于6位',
-                                      'required':'不能为空'
+                                      'min_length': '不能少于6位',
+                                      'required': '不能为空'
                                   }
                                   )
 
@@ -28,24 +35,18 @@ class RegForm(forms.ModelForm):
             'department': '部门',
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields.values():
-            field.widget.attrs.update({'class': 'form-control'})
-
-
     def clean(self):
         pwd = self.cleaned_data.get('password')
         re_pwd = self.cleaned_data.get('re_password')
-        print(pwd,re_pwd)
+        print(pwd, re_pwd)
         if pwd == re_pwd:
             print('两次密码一致，校验成功')
             return self.cleaned_data
-        self.add_error('re_password','两次密码不一致')
+        self.add_error('re_password', '两次密码不一致')
         raise ValidationError('两次密码不一致')
 
 
-class CustomerForm(forms.ModelForm):
+class CustomerForm(BaseForm):
     class Meta:
         model = models.Customer
         fields = '__all__'
@@ -53,7 +54,33 @@ class CustomerForm(forms.ModelForm):
             'course': forms.widgets.SelectMultiple
         }
 
+
+class ConsultRecordForm(BaseForm):
+    class Meta:
+        model = models.ConsultRecord
+        exclude = ['delete_status']
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for filed in self.fields.values():
-            filed.widget.attrs.update({'class': 'form-control'})
+
+        customer_choice = [(i.id, i) for i in self.instance.consultant.customers.all()]
+        customer_choice.insert(0, ('', '---'))
+
+        # 限制客户是当前销售的私户
+        self.fields['customer'].widget.choices = customer_choice
+        # 限制跟进人是当前的用户（销售）
+        self.fields['consultant'].widget.choices = [(self.instance.consultant.id, self.instance.consultant), ]
+
+
+class EnrollmentForm(BaseForm):
+    class Meta:
+        model = models.Enrollment
+        exclude = ['delete_status']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        #
+        self.fields['customer'].widget.choices = [(self.instance.customer_id,self.instance.customer),]
+
+        self.fields['enrolment_class'].widget.choices = [(i.id, i) for i in self.instance.customer.class_list.all()]

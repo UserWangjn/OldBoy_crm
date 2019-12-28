@@ -1,0 +1,85 @@
+{% extends 'layout.html' %}
+
+{% block css %}
+    <style>
+        th, tr {
+            text-align: center;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="panel panel-default">
+        <!-- Default panel contents -->
+        <div class="panel-heading">报名记录查询</div>
+
+        <div class="panel-body">
+
+            <div>
+                <form action="" method="get" class="form-inline pull-right">
+                    <input type="text" name="query" class="form-control">
+                    <button class="btn btn-sm btn-primary">搜索 <i class="fa fa-search"></i></button>
+                </form>
+            </div>
+            <form action="" method="post" class="form-inline">
+                {% csrf_token %}
+                <select name="action" class="form-control" style="margin: 5px 0">
+                    <option value="">请选择</option>
+                    <option value="multi_delte">删除</option>
+                </select>
+                <button class="btn btn-success btn-sm">提交</button>
+                <table class="table table-condensed table-hover table-bordered">
+                    <thead>
+                    <tr>
+                        <th>选择</th>
+                        <th>序号</th>
+                        <th>客户</th>
+                        <th>报名原因</th>
+                        <th>期望</th>
+                        <th>阅读协议</th>
+                        <th>审批</th>
+                        <th>报名日期</th>
+                        <th>备注</th>
+                        <th>校区</th>
+                        <th>所报班级</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+
+                    {% for enrollment in all_enrollment %}
+                        <tr>
+                            <td><input type="checkbox" name="id" value="{{ enrollment.id }}"></td>
+                            <td>{{ forloop.counter }}</td>
+                            <td>{{ enrollment.customer }}</td>
+                            <td>{{ enrollment.why_us }}</td>
+                            <td>{{ enrollment.your_expectation }}</td>
+                            <td>{{ enrollment.contract_agreed }}</td>
+                            <td>{{ enrollment.contract_approved }}</td>
+                            <td>{{ enrollment.enrolled_date }}</td>
+                            <td>{{ enrollment.memo }}</td>
+                            <td>{{ enrollment.school }}</td>
+                            <td>{{ enrollment.enrolment_class }}</td>
+                            <td><a href="{% url 'edit_enrollment' enrollment.id %}?{{ next_url }}"><i class="fa fa-edit fa-fw"></i></a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+
+
+                    </tbody>
+                </table>
+            </form>
+
+            <div style="text-align: center">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination">
+
+                        {{ pagination }}
+                    </ul>
+                </nav>
+            </div>
+        </div>
+
+
+    </div>
+{% endblock %}
