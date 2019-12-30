@@ -15,11 +15,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path,re_path,include
-from crm import views
+from crm.views import consultant
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    re_path('^login/', views.login),
-    re_path('^reg/', views.reg),
+    re_path('^login/', consultant.login),
+    re_path('^reg/', consultant.reg),
     re_path('^crm/', include('crm.urls')),
 ]

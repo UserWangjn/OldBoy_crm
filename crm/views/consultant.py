@@ -8,6 +8,7 @@ from django.db.models import Q
 import copy
 from django.http import QueryDict
 from django.utils.safestring import mark_safe
+from django.db import transaction
 
 
 def login(request):
@@ -51,7 +52,7 @@ def customer_list(request):
     else:
         all_customer = models.Customer.objects.filter(consultant=request.user)
     page = Pagination(request, all_customer.count())
-    return render(request, 'crm/customer_list.html', {
+    return render(request, 'crm/consultant/customer_list.html', {
         "all_customer": all_customer[page.start:page.end],
         'pagination': page.show_li})
 
@@ -71,11 +72,11 @@ class CustomerList(View):
                                                           consultant=request.user)
         query_params = copy.deepcopy(request.GET)
         # print('query_params:',query_params)
-        page = Pagination(request, all_customer.count(), query_params, per_num=2)
+        page = Pagination(request, all_customer.count(), query_params)
         add_btn, next_url = self.get_add_btn()
         # print('add_btn:', add_btn)
         # print('next_url:', next_url)
-        return render(request, 'crm/customer_list.html', {
+        return render(request, 'crm/consultant/customer_list.html', {
             "all_customer": all_customer[page.start:page.end],
             'pagination': page.show_li,
             'add_btn': add_btn,
@@ -88,14 +89,24 @@ class CustomerList(View):
         if not hasattr(self, action):
             return HttpResponse('不存在的操作')
         ret = getattr(self, action)()
-
+        if ret:
+            return ret
         # return redirect(reverse('customer'))
         return self.get(request)
 
+    # 公户变私户
     def multi_to_pri(self):
         select_ids = self.request.POST.getlist('id')
-        models.Customer.objects.filter(id__in=select_ids).update(consultant=self.request.user)
+        # 申请数量
+        apply_num = len(select_ids)
+        with transaction.atomic():
+            obj_list = models.Customer.objects.filter(id__in=select_ids, consultant__isnull=True).select_for_update()
+            if len(obj_list) == apply_num:
+                obj_list.update(consultant=self.request.user)
+            else:
+                return HttpResponse('您提交的客户中有已经被别人抢走了')
 
+    # 私户变公户
     def multi_to_pub(self):
         select_ids = self.request.POST.getlist('id')
         models.Customer.objects.filter(id__in=select_ids).update(consultant=None)
@@ -135,7 +146,7 @@ def customer(request, edit_id=None):
             if next:
                 return redirect(next)
             return redirect(reverse('customer'))
-    return render(request, 'crm/customer.html', {'form_obj': form_obj, 'edit_obj': edit_obj})
+    return render(request, 'crm/consultant/customer.html', {'form_obj': form_obj, 'edit_obj': edit_obj})
 
 
 # 展示跟进记录
@@ -148,7 +159,7 @@ class ConsultRecord(View):
             all_consult_record = models.ConsultRecord.objects.filter(customer_id=customer_id, delete_status=False)
         query_params = copy.deepcopy(request.GET)
         page = Pagination(request, all_consult_record.count(), query_params, per_num=2)
-        return render(request, 'crm/consult_record_list.html', {
+        return render(request, 'crm/consultant/consult_record_list.html', {
             "all_consult_record": all_consult_record[page.start:page.end],
             'pagination': page.show_li,
         })
@@ -163,7 +174,7 @@ def consult_record(request, edit_id=None):
         if form_obj.is_valid():
             form_obj.save()
             return redirect(reverse('consult_record', args=(0,)))
-    return render(request, 'crm/consult_record.html', {'form_obj': form_obj})
+    return render(request, 'crm/consultant/consult_record.html', {'form_obj': form_obj})
 
 
 # 展示报名记录
@@ -174,8 +185,8 @@ class EnrollmentList(View):
         else:
             all_enrollment = models.Enrollment.objects.filter(customer_id=customer_id, delete_status=False)
         next_url = self.get_next_url()
-        return render(request, 'crm/enrollment_list.html', {'all_enrollment': all_enrollment,
-                                                            'next_url':next_url})
+        return render(request, 'crm/consultant/enrollment_list.html', {'all_enrollment': all_enrollment,
+                                                            'next_url': next_url})
 
     def get_next_url(self):
         next = self.request.get_full_path()
@@ -202,5 +213,5 @@ def enrollment(request, customer_id=None, edit_id=None):
             if next:
                 return redirect(next)
             return redirect(reverse('my_customer'))
-    return render(request, 'crm/enrollment.html', {'form_obj': form_obj,
+    return render(request, 'crm/consultant/enrollment.html', {'form_obj': form_obj,
                                                    'edit_id': edit_id})

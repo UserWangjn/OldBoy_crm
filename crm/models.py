@@ -154,14 +154,17 @@ class ClassList(models.Model):
     contract = models.ForeignKey('ContractTemplate', verbose_name="选择合同模版", blank=True, null=True,
                                  on_delete=models.CASCADE)
     teachers = models.ManyToManyField('UserProfile', verbose_name="老师")
-    class_type = models.CharField(choices=class_type_choices, max_length=64, verbose_name='班额及类型', blank=True,
+    class_type = models.CharField(choices=class_type_choices, max_length=64, verbose_name='班级类型', blank=True,
                                   null=True)
 
     class Meta:
         unique_together = ("course", "semester", 'campuses')
 
     def __str__(self):
-        return '{}{}学期({})'.format(self.get_course_display(), self.semester, self.campuses)
+        return '{}-{}学期({})'.format(self.get_course_display(), self.semester, self.campuses)
+
+    def show_teachers(self):
+        return '|'.join([str(i) for i in self.teachers.all()])
 
 
 class ConsultRecord(models.Model):
@@ -235,10 +238,14 @@ class CourseRecord(models.Model):
     homework_memo = models.TextField('作业描述', max_length=500, blank=True, null=True)
     scoring_point = models.TextField('得分点', max_length=300, blank=True, null=True)
     re_class = models.ForeignKey('ClassList', verbose_name="班级", on_delete=models.CASCADE)
-    teacher = models.ForeignKey('UserProfile', verbose_name="讲师", on_delete=models.CASCADE)
+    teacher = models.ForeignKey('UserProfile', verbose_name="班主任", on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('re_class', 'day_num')
+
+
+    def __str__(self):
+        return "{}(第{}节次)".format(self.re_class,self.day_num)
 
 
 class StudyRecord(models.Model):

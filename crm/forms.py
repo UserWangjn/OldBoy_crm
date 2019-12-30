@@ -72,6 +72,7 @@ class ConsultRecordForm(BaseForm):
         self.fields['consultant'].widget.choices = [(self.instance.consultant.id, self.instance.consultant), ]
 
 
+# 报名表Form
 class EnrollmentForm(BaseForm):
     class Meta:
         model = models.Enrollment
@@ -80,7 +81,25 @@ class EnrollmentForm(BaseForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        #
-        self.fields['customer'].widget.choices = [(self.instance.customer_id,self.instance.customer),]
-
+        # 限制当前的客户只能是传的id对应的客户
+        self.fields['customer'].widget.choices = [(self.instance.customer_id, self.instance.customer), ]
+        # 限制当前可报名的班级是当前客户的意向班级
         self.fields['enrolment_class'].widget.choices = [(i.id, i) for i in self.instance.customer.class_list.all()]
+
+
+class ClassForm(BaseForm):
+    class Meta:
+        model = models.ClassList
+        fields = '__all__'
+
+
+class CourseForm(BaseForm):
+    class Meta:
+        model = models.CourseRecord
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields['re_class'].widget.choices = [(self.instance.re_class_id, self.instance.re_class)]
+        self.fields['teacher'].widget.choices = [(self.instance.teacher_id, self.instance.teacher)]
