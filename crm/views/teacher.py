@@ -69,7 +69,18 @@ class CourseList(View):
         page = Pagination(request, all_course.count(), request.GET.copy())
         return render(request, 'crm/teacher/course_list.html',
                       {'all_course': all_course[page.start:page.end], 'query_params': query_params,
-                       'class_id':class_id})
+                       'class_id': class_id})
+
+    def post(self, request, class_id):
+        # print(request.POST)   # <QueryDict: {'csrfmiddlewaretoken': ['KOIBZh8aVJ7xQM7ZxwgZfK4Wd3atAa1BdbxJJyx4x3g4W7eJfS5MkppIvuwGRFMC'], 'action': ['multi_to_pri'], 'id': ['2', '3', '6']}>
+        action = request.POST.get('action')
+        if not hasattr(self, action):
+            return HttpResponse('不存在的操作')
+        ret = getattr(self, action)()
+        if ret:
+            return ret
+        # return redirect(reverse('customer'))
+        return self.get(request, class_id)
 
     def get_next_url(self):
         next = self.request.get_full_path()
@@ -90,10 +101,24 @@ class CourseList(View):
 
         return q
 
+    def multi_init(self):
+        course_ids = self.request.POST.getlist('id')
+        course_obj_list = models.CourseRecord.objects.filter(id__in=course_ids)
+        for course_obj in course_obj_list:
+            all_students = course_obj.re_class.customer_set.filter(status='studying')
+            student_list = []
+            for student in all_students:
+                # 方式一
+                # models.StudyRecord.objects.create(course_record=course_obj,student=student)
+                # 方式二
+                student_list.append(models.StudyRecord(course_record=course_obj, student=student))
+            models.StudyRecord.objects.bulk_create(student_list)
+
 
 # 新增和编辑课程
 def course(request, class_id=None, edit_id=None):
-    obj = models.CourseRecord.objects.filter(id=edit_id).first() or models.CourseRecord(re_class_id=class_id,teacher=request.user)
+    obj = models.CourseRecord.objects.filter(id=edit_id).first() or models.CourseRecord(re_class_id=class_id,
+                                                                                        teacher=request.user)
     # print(obj)
     form_obj = forms.CourseForm(instance=obj)
     tittle = '编辑课程列表' if edit_id else '新增课程列表'
@@ -104,5 +129,23 @@ def course(request, class_id=None, edit_id=None):
             next = request.GET.get('next')
             if next:
                 return redirect(next)
-            return redirect(reverse('course_list',args=(class_id,)))
+            return redirect(reverse('course_list', args=(class_id,)))
     return render(request, 'crm/base_form.html', {'form_obj': form_obj, 'tittle': tittle})
+
+
+from django.forms import modelformset_factory
+
+
+def study_record(request, course_id):
+    FormSet = modelformset_factory(models.StudyRecord, forms.StudyRecordForm,extra=0)
+    queryset = models.StudyRecord.objects.filter(course_record_id=course_id)
+    form_set = FormSet(queryset=queryset)
+    if request.method == 'POST':
+        form_set = FormSet(request.POST)
+        if form_set.is_valid():
+            form_set.save()
+            next = request.GET.get('next')
+            if next:
+                return redirect(next)
+            return redirect(reverse('study_record_list', args=(course_id,)))
+    return render(request, 'crm/teacher/study_record_list.html',{'form_set':form_set})

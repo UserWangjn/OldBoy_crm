@@ -25,7 +25,7 @@
                 {% csrf_token %}
                 <select name="action" class="form-control" style="margin: 5px 0">
                     <option value="">请选择</option>
-                    <option value="multi_delte">删除</option>
+                    <option value="multi_init">初始化学习记录</option>
                 </select>
                 <button class="btn btn-success btn-sm">提交</button>
                 <table class="table table-condensed table-hover table-bordered">
@@ -47,7 +47,7 @@
                         <tr>
                             <td><input type="checkbox" name="id" value="{{ course.id }}"></td>
                             <td>{{ forloop.counter }}</td>
-                            <td>{{ course }}</td>
+                            <td><a href="{% url 'study_record_list' course.id %}">{{ course }}</a></td>
                             <td>{{ course.course_title }}</td>
                             <td>{{ course.has_homework }}</td>
                             <td>{{ course.date }}</td>

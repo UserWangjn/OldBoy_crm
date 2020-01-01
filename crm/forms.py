@@ -103,3 +103,9 @@ class CourseForm(BaseForm):
 
         self.fields['re_class'].widget.choices = [(self.instance.re_class_id, self.instance.re_class)]
         self.fields['teacher'].widget.choices = [(self.instance.teacher_id, self.instance.teacher)]
+
+
+class StudyRecordForm(BaseForm):
+    class Meta:
+        model = models.StudyRecord
+        fields = ['student','attendance','score','homework_note']

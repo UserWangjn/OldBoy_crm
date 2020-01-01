@@ -36,4 +36,6 @@ urlpatterns = [
     re_path('^course/add/(?P<class_id>\d+)', teacher.course, name='add_course'),
     # 编辑课程列表
     re_path('^course/edit/(?P<edit_id>\d+)', teacher.course, name='edit_course'),
+    # 展示学习记录
+    re_path('^study_record_list/(?P<course_id>\d+)',teacher.study_record,name='study_record_list'),
 ]
