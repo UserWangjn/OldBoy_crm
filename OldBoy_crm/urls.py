@@ -19,7 +19,7 @@ from crm.views import consultant
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    re_path('^login/', consultant.login),
+    re_path('^login/', consultant.login),   # 用户名：admin@qq.com  密码：admin1234
     re_path('^reg/', consultant.reg),
     re_path('^crm/', include('crm.urls')),
 ]

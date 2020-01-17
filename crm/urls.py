@@ -2,7 +2,7 @@ from django.urls import re_path
 from crm.views import consultant, teacher
 
 urlpatterns = [
-    # 共有客户
+    # 公有客户
     # re_path('^customer_list/', views.customer_list,name='customer'),
     re_path('^customer_list/', consultant.CustomerList.as_view(), name='customer'),
     # 私有客户
