@@ -100,6 +100,7 @@ class CustomerList(View):
         # 申请数量
         apply_num = len(select_ids)
         with transaction.atomic():
+            # transaction.atomic()事务，原子性操作。select_for_update()行级锁，防止多个人抢一个客户出现问题
             obj_list = models.Customer.objects.filter(id__in=select_ids, consultant__isnull=True).select_for_update()
             if len(obj_list) == apply_num:
                 obj_list.update(consultant=self.request.user)
